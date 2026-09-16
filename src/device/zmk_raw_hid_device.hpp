@@ -28,11 +28,13 @@ public:
     void queryKeymapSummary() override;
     void queryLayerInfo(uint8_t layerIndex) override;
     void queryLayerBinding(uint8_t layerIndex, uint8_t bindingIndex) override;
+    void querySensorBinding(uint8_t layerIndex, uint8_t sensorIndex) override;
 
     void setOnLayerState(LayerStateCb cb) override { onLayerState_ = std::move(cb); }
     void setOnSummary(SummaryCb cb) override { onSummary_ = std::move(cb); }
     void setOnLayerInfo(LayerInfoCb cb) override { onLayerInfo_ = std::move(cb); }
     void setOnBinding(BindingCb cb) override { onBinding_ = std::move(cb); }
+    void setOnSensorBinding(SensorBindingCb cb) override { onSensorBinding_ = std::move(cb); }
     void setOnDisconnect(DisconnectCb cb) override { onDisconnect_ = std::move(cb); }
 
 private:
@@ -48,6 +50,7 @@ private:
     SummaryCb onSummary_;
     LayerInfoCb onLayerInfo_;
     BindingCb onBinding_;
+    SensorBindingCb onSensorBinding_;
     DisconnectCb onDisconnect_;
 };
 

@@ -104,6 +104,28 @@ std::optional<KeymapData> KeymapCache::load(std::string_view device_name,
             }
         }
 
+        if (j.contains("sensor_bindings") && j["sensor_bindings"].is_object()) {
+            for (auto it = j["sensor_bindings"].begin(); it != j["sensor_bindings"].end(); ++it) {
+                try {
+                    uint8_t layer_idx = static_cast<uint8_t>(std::stoul(it.key()));
+                    std::vector<SensorBinding> s_list;
+                    if (it.value().is_array()) {
+                        for (const auto &s_item : it.value()) {
+                            SensorBinding sb;
+                            sb.sensorIndex = s_item.value("sensor", static_cast<uint8_t>(0));
+                            sb.behavior = s_item.value("behavior", "");
+                            sb.param1 = s_item.value("param1", static_cast<uint32_t>(0));
+                            sb.param2 = s_item.value("param2", static_cast<uint32_t>(0));
+                            s_list.push_back(std::move(sb));
+                        }
+                    }
+                    data.sensorBindings[layer_idx] = std::move(s_list);
+                } catch (const std::exception &ex) {
+                    LOG_WARN("Failed to parse sensor bindings key {}: {}", it.key(), ex.what());
+                }
+            }
+        }
+
         LOG_DEBUG("Successfully loaded cached keymap from {}", path.string());
         return data;
     } catch (const std::exception &ex) {
@@ -151,6 +173,19 @@ bool KeymapCache::save(const KeymapData &data) const {
         }
         j["bindings"] = bindings_obj;
 
+        json sensor_bindings_obj = json::object();
+        for (const auto &[layer_idx, s_list] : data.sensorBindings) {
+            json s_arr = json::array();
+            for (const auto &s : s_list) {
+                s_arr.push_back(json::object({{"sensor", s.sensorIndex},
+                                              {"behavior", s.behavior},
+                                              {"param1", s.param1},
+                                              {"param2", s.param2}}));
+            }
+            sensor_bindings_obj[std::to_string(layer_idx)] = s_arr;
+        }
+        j["sensor_bindings"] = sensor_bindings_obj;
+
         {
             std::ofstream out(tmp_path);
             if (!out.is_open()) {
@@ -187,6 +222,19 @@ bool KeymapCache::update_bindings(std::string_view device_name, std::string_view
     }
 
     data->bindings[layer_idx] = bindings;
+    return save(*data);
+}
+
+bool KeymapCache::update_sensor_bindings(std::string_view device_name, std::string_view build_id,
+                                         uint8_t layer_idx,
+                                         const std::vector<SensorBinding> &sensor_bindings) const {
+    auto data = load(device_name, build_id);
+    if (!data) {
+        LOG_WARN("Cannot update sensor bindings: no existing cache for {} / {}", device_name, build_id);
+        return false;
+    }
+
+    data->sensorBindings[layer_idx] = sensor_bindings;
     return save(*data);
 }
 

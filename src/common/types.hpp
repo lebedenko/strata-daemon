@@ -26,11 +26,19 @@ struct KeyBinding {
     uint32_t param2{0};
 };
 
+struct SensorBinding {
+    uint8_t sensorIndex{0};
+    std::string behavior;
+    uint32_t param1{0};
+    uint32_t param2{0};
+};
+
 struct KeymapSummary {
     uint8_t layerCount{0};
     uint8_t keysPerLayer{0};
     uint8_t defaultLayer{0};
     std::string buildId;
+    uint8_t sensorsPerLayer{0};
 };
 
 struct KeymapData {
@@ -39,6 +47,7 @@ struct KeymapData {
     KeymapSummary summary;
     std::vector<LayerInfo> layers;
     std::unordered_map<uint8_t, std::vector<KeyBinding>> bindings;
+    std::unordered_map<uint8_t, std::vector<SensorBinding>> sensorBindings;
 };
 
 struct DeviceStatus {

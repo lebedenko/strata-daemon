@@ -143,10 +143,12 @@ void ZmkRawHidDevice::handleReport(std::span<const uint8_t> data) {
             .keysPerLayer = report->keysPerLayer,
             .defaultLayer = report->defaultLayer,
             .buildId = buildId_,
+            .sensorsPerLayer = report->sensorsPerLayer,
         };
 
-        log::info("Keymap summary: {} layers, {} keys/layer, default={}, build='{}'",
-                  summary.layerCount, summary.keysPerLayer, summary.defaultLayer, summary.buildId);
+        log::info("Keymap summary: {} layers, {} keys/layer, {} sensors/layer, default={}, build='{}'",
+                  summary.layerCount, summary.keysPerLayer, summary.sensorsPerLayer,
+                  summary.defaultLayer, summary.buildId);
 
         if (onSummary_) {
             onSummary_(summary);
@@ -199,6 +201,28 @@ void ZmkRawHidDevice::handleReport(std::span<const uint8_t> data) {
         break;
     }
 
+    case protocol::MsgSensorBinding: {
+        const auto *report = reinterpret_cast<const protocol::SensorBindingReport *>(data.data());
+        std::string behavior =
+            protocol::cleanString(report->behaviorName, protocol::MaxBehaviorNameLen);
+
+        SensorBinding binding{
+            .sensorIndex = report->sensorIndex,
+            .behavior = behavior,
+            .param1 = report->param1,
+            .param2 = report->param2,
+        };
+
+        log::debug("Sensor binding: layer={}, sensor={}, behavior='{}', p1=0x{:x}, p2=0x{:x}",
+                   report->layerIndex, binding.sensorIndex, binding.behavior, binding.param1,
+                   binding.param2);
+
+        if (onSensorBinding_) {
+            onSensorBinding_(report->layerIndex, binding);
+        }
+        break;
+    }
+
     default:
         log::debug("Unknown report msg_type=0x{:02x} (len={})", msgType, data.size());
         break;
@@ -222,6 +246,11 @@ void ZmkRawHidDevice::queryLayerInfo(uint8_t layerIndex) {
 
 void ZmkRawHidDevice::queryLayerBinding(uint8_t layerIndex, uint8_t bindingIndex) {
     auto query = protocol::makeGetLayerBindingQuery(layerIndex, bindingIndex);
+    writeReport(query);
+}
+
+void ZmkRawHidDevice::querySensorBinding(uint8_t layerIndex, uint8_t sensorIndex) {
+    auto query = protocol::makeGetSensorBindingQuery(layerIndex, sensorIndex);
     writeReport(query);
 }
 

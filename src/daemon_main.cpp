@@ -145,6 +145,7 @@ int main(int argc, char *argv[]) {
                 current_keymap.summary = summary;
                 current_keymap.layers.clear();
                 current_keymap.bindings.clear();
+                current_keymap.sensorBindings.clear();
                 current_status.cached = false;
 
                 LOG_INFO("Cache miss for build {}. Discovering keymap from hardware...",
@@ -213,10 +214,46 @@ int main(int argc, char *argv[]) {
             } else {
                 cache.update_bindings(current_status.name, current_status.buildId, layer, list);
                 LOG_INFO("Loaded all {} bindings for layer {}", list.size(), layer);
+                if (current_keymap.summary.sensorsPerLayer > 0) {
+                    if (auto *active = device_mgr.activeDevice()) {
+                        active->querySensorBinding(layer, 0);
+                    }
+                }
                 if (dbus_server) {
                     dbus_server->emit_layer_bindings_loaded(layer,
                                                             static_cast<uint32_t>(list.size()));
                 }
+            }
+        });
+
+        dev->setOnSensorBinding([&](uint8_t layer, const strata::SensorBinding &binding) {
+            LOG_DEBUG("Received sensor binding: layer={}, sensor={}, behavior={}", layer,
+                      binding.sensorIndex, binding.behavior);
+
+            auto &list = current_keymap.sensorBindings[layer];
+            auto it =
+                std::find_if(list.begin(), list.end(), [&](const strata::SensorBinding &b) {
+                    return b.sensorIndex == binding.sensorIndex;
+                });
+            if (it != list.end()) {
+                *it = binding;
+            } else {
+                list.push_back(binding);
+            }
+            std::sort(list.begin(), list.end(),
+                      [](const strata::SensorBinding &a, const strata::SensorBinding &b) {
+                          return a.sensorIndex < b.sensorIndex;
+                      });
+
+            if (binding.sensorIndex + 1 < current_keymap.summary.sensorsPerLayer) {
+                if (auto *active = device_mgr.activeDevice()) {
+                    active->querySensorBinding(layer,
+                                               static_cast<uint8_t>(binding.sensorIndex + 1));
+                }
+            } else {
+                cache.update_sensor_bindings(current_status.name, current_status.buildId, layer,
+                                             list);
+                LOG_INFO("Loaded all {} sensor bindings for layer {}", list.size(), layer);
             }
         });
 
@@ -245,12 +282,22 @@ int main(int argc, char *argv[]) {
     dbus_cbs.get_status = [&]() { return current_status; };
     dbus_cbs.get_layers = [&]() { return current_keymap.layers; };
     dbus_cbs.get_keymap = [&](uint32_t layer_idx) -> std::optional<strata::KeymapData> {
-        if (layer_idx != 255 &&
-            !current_keymap.bindings.contains(static_cast<uint8_t>(layer_idx))) {
-            if (auto *dev = device_mgr.activeDevice()) {
-                if (dev->isOpen() && current_keymap.summary.keysPerLayer > 0) {
-                    LOG_INFO("Fetching bindings for layer {} from hardware...", layer_idx);
-                    dev->queryLayerBinding(static_cast<uint8_t>(layer_idx), 0);
+        if (layer_idx != 255) {
+            if (!current_keymap.bindings.contains(static_cast<uint8_t>(layer_idx))) {
+                if (auto *dev = device_mgr.activeDevice()) {
+                    if (dev->isOpen() && current_keymap.summary.keysPerLayer > 0) {
+                        LOG_INFO("Fetching bindings for layer {} from hardware...", layer_idx);
+                        dev->queryLayerBinding(static_cast<uint8_t>(layer_idx), 0);
+                    }
+                }
+            }
+            if (current_keymap.summary.sensorsPerLayer > 0 &&
+                !current_keymap.sensorBindings.contains(static_cast<uint8_t>(layer_idx))) {
+                if (auto *dev = device_mgr.activeDevice()) {
+                    if (dev->isOpen()) {
+                        LOG_INFO("Fetching sensor bindings for layer {} from hardware...", layer_idx);
+                        dev->querySensorBinding(static_cast<uint8_t>(layer_idx), 0);
+                    }
                 }
             }
         }
@@ -268,6 +315,7 @@ int main(int argc, char *argv[]) {
         LOG_INFO("Refreshing keymap from hardware...");
         current_keymap.layers.clear();
         current_keymap.bindings.clear();
+        current_keymap.sensorBindings.clear();
         dev->queryKeymapSummary();
         return true;
     };

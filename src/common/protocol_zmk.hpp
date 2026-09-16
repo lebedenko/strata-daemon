@@ -18,12 +18,14 @@ inline constexpr uint8_t MsgLayerState = 0x01;
 inline constexpr uint8_t MsgKeymapSummary = 0x02;
 inline constexpr uint8_t MsgLayerInfo = 0x03;
 inline constexpr uint8_t MsgLayerBinding = 0x04;
+inline constexpr uint8_t MsgSensorBinding = 0x05;
 
 // Command types from Host -> Keyboard
 inline constexpr uint8_t CmdGetCurrentLayer = 0x01;
 inline constexpr uint8_t CmdGetKeymapSummary = 0x02;
 inline constexpr uint8_t CmdGetLayerInfo = 0x03;
 inline constexpr uint8_t CmdGetLayerBinding = 0x04;
+inline constexpr uint8_t CmdGetSensorBinding = 0x05;
 
 #pragma pack(push, 1)
 
@@ -44,7 +46,8 @@ struct KeymapSummaryReport {
     uint8_t keysPerLayer{0};
     uint8_t defaultLayer{0};
     char buildId[BuildIdLen]{0};
-    uint8_t reserved[20]{0};
+    uint8_t sensorsPerLayer{0};
+    uint8_t reserved[19]{0};
 };
 static_assert(sizeof(KeymapSummaryReport) == RawReportSize, "KeymapSummaryReport must be 32 bytes");
 
@@ -69,6 +72,17 @@ struct LayerBindingReport {
     uint8_t reserved[9]{0};
 };
 static_assert(sizeof(LayerBindingReport) == RawReportSize, "LayerBindingReport must be 32 bytes");
+
+struct SensorBindingReport {
+    uint8_t msgType{MsgSensorBinding};
+    uint8_t layerIndex{0};
+    uint8_t sensorIndex{0};
+    char behaviorName[MaxBehaviorNameLen]{0};
+    uint32_t param1{0};
+    uint32_t param2{0};
+    uint8_t reserved[9]{0};
+};
+static_assert(sizeof(SensorBindingReport) == RawReportSize, "SensorBindingReport must be 32 bytes");
 
 #pragma pack(pop)
 
@@ -105,6 +119,15 @@ inline std::array<uint8_t, RawReportSize> makeGetLayerBindingQuery(uint8_t layer
     buf[0] = CmdGetLayerBinding;
     buf[1] = layerIndex;
     buf[2] = bindingIndex;
+    return buf;
+}
+
+inline std::array<uint8_t, RawReportSize> makeGetSensorBindingQuery(uint8_t layerIndex,
+                                                                    uint8_t sensorIndex) {
+    std::array<uint8_t, RawReportSize> buf{};
+    buf[0] = CmdGetSensorBinding;
+    buf[1] = layerIndex;
+    buf[2] = sensorIndex;
     return buf;
 }
 

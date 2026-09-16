@@ -22,6 +22,10 @@ public:
     bool update_bindings(std::string_view device_name, std::string_view build_id, uint8_t layer_idx,
                          const std::vector<KeyBinding> &bindings) const;
 
+    bool update_sensor_bindings(std::string_view device_name, std::string_view build_id,
+                                uint8_t layer_idx,
+                                const std::vector<SensorBinding> &sensor_bindings) const;
+
     bool clear() const;
 
     [[nodiscard]] std::vector<std::string>

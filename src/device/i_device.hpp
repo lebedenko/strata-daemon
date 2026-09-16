@@ -29,6 +29,8 @@ public:
     virtual void queryKeymapSummary() = 0;
     virtual void queryLayerInfo(uint8_t layerIndex) = 0;
     virtual void queryLayerBinding(uint8_t layerIndex, uint8_t bindingIndex) = 0;
+    virtual void querySensorBinding([[maybe_unused]] uint8_t layerIndex,
+                                    [[maybe_unused]] uint8_t sensorIndex) {}
 
     // Callbacks
     using LayerStateCb =
@@ -36,12 +38,14 @@ public:
     using SummaryCb = std::function<void(const KeymapSummary &)>;
     using LayerInfoCb = std::function<void(const LayerInfo &)>;
     using BindingCb = std::function<void(uint8_t layer, const KeyBinding &)>;
+    using SensorBindingCb = std::function<void(uint8_t layer, const SensorBinding &)>;
     using DisconnectCb = std::function<void()>;
 
     virtual void setOnLayerState(LayerStateCb cb) = 0;
     virtual void setOnSummary(SummaryCb cb) = 0;
     virtual void setOnLayerInfo(LayerInfoCb cb) = 0;
     virtual void setOnBinding(BindingCb cb) = 0;
+    virtual void setOnSensorBinding([[maybe_unused]] SensorBindingCb cb) {}
     virtual void setOnDisconnect(DisconnectCb cb) = 0;
 };
 

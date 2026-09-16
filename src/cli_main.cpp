@@ -220,6 +220,29 @@ int cmd_keymap(sd_bus *bus, uint32_t layer_idx, bool refresh, bool as_json) {
         std::cout << "No bindings cached for this layer yet. Run with --refresh to query hardware.\n";
     }
 
+    if (j.contains("sensor_bindings") && j["sensor_bindings"].is_object() &&
+        !j["sensor_bindings"].empty()) {
+        for (auto it = j["sensor_bindings"].begin(); it != j["sensor_bindings"].end(); ++it) {
+            std::cout << std::format("Layer {} Sensor Bindings:\n", it.key())
+                      << std::format("  {:<8}{:<18}{:<14}Param 2 (CCW)\n", "Sensor", "Behavior",
+                                     "Param 1 (CW)")
+                      << "  " << std::string(52, '-') << "\n";
+
+            if (it.value().is_array()) {
+                for (const auto &b : it.value()) {
+                    uint32_t s_idx = b.value("sensor", 0);
+                    std::string beh = b.value("behavior", "");
+                    uint32_t p1 = b.value("param1", 0);
+                    uint32_t p2 = b.value("param2", 0);
+
+                    std::cout << std::format("  {:<8}{:<18}0x{:08x}    0x{:08x}\n", s_idx, beh, p1,
+                                             p2);
+                }
+            }
+            std::cout << "\n";
+        }
+    }
+
     return 0;
 }
 

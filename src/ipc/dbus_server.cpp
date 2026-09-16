@@ -237,6 +237,7 @@ int DBusServer::method_get_keymap(sd_bus_message *m, void *userdata,
     j["device"] = data->deviceName;
     j["summary"] = {{"layer_count", data->summary.layerCount},
                     {"keys_per_layer", data->summary.keysPerLayer},
+                    {"sensors_per_layer", data->summary.sensorsPerLayer},
                     {"default_layer", data->summary.defaultLayer},
                     {"build_id", data->summary.buildId}};
 
@@ -262,6 +263,22 @@ int DBusServer::method_get_keymap(sd_bus_message *m, void *userdata,
         bindings_obj[std::to_string(idx)] = b_arr;
     }
     j["bindings"] = bindings_obj;
+
+    nlohmann::ordered_json sensor_bindings_obj = nlohmann::ordered_json::object();
+    for (const auto &[idx, s_list] : data->sensorBindings) {
+        if (layer_idx != 255 && idx != layer_idx) {
+            continue;
+        }
+        nlohmann::ordered_json s_arr = nlohmann::ordered_json::array();
+        for (const auto &s : s_list) {
+            s_arr.push_back(nlohmann::ordered_json::object({{"sensor", s.sensorIndex},
+                                                            {"behavior", s.behavior},
+                                                            {"param1", s.param1},
+                                                            {"param2", s.param2}}));
+        }
+        sensor_bindings_obj[std::to_string(idx)] = s_arr;
+    }
+    j["sensor_bindings"] = sensor_bindings_obj;
 
     std::string s = j.dump();
     return sd_bus_reply_method_return(m, "s", s.c_str());
