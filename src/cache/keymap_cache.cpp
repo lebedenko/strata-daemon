@@ -230,7 +230,8 @@ bool KeymapCache::update_sensor_bindings(std::string_view device_name, std::stri
                                          const std::vector<SensorBinding> &sensor_bindings) const {
     auto data = load(device_name, build_id);
     if (!data) {
-        LOG_WARN("Cannot update sensor bindings: no existing cache for {} / {}", device_name, build_id);
+        LOG_WARN("Cannot update sensor bindings: no existing cache for {} / {}", device_name,
+                 build_id);
         return false;
     }
 

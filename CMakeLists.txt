@@ -109,5 +109,5 @@ install(FILES systemd/org.freedesktop.Strata.service
 )
 
 install(FILES udev/99-strata.rules
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/udev/rules.d
+    DESTINATION lib/udev/rules.d
 )

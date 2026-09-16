@@ -231,10 +231,9 @@ int main(int argc, char *argv[]) {
                       binding.sensorIndex, binding.behavior);
 
             auto &list = current_keymap.sensorBindings[layer];
-            auto it =
-                std::find_if(list.begin(), list.end(), [&](const strata::SensorBinding &b) {
-                    return b.sensorIndex == binding.sensorIndex;
-                });
+            auto it = std::find_if(list.begin(), list.end(), [&](const strata::SensorBinding &b) {
+                return b.sensorIndex == binding.sensorIndex;
+            });
             if (it != list.end()) {
                 *it = binding;
             } else {
@@ -295,7 +294,8 @@ int main(int argc, char *argv[]) {
                 !current_keymap.sensorBindings.contains(static_cast<uint8_t>(layer_idx))) {
                 if (auto *dev = device_mgr.activeDevice()) {
                     if (dev->isOpen()) {
-                        LOG_INFO("Fetching sensor bindings for layer {} from hardware...", layer_idx);
+                        LOG_INFO("Fetching sensor bindings for layer {} from hardware...",
+                                 layer_idx);
                         dev->querySensorBinding(static_cast<uint8_t>(layer_idx), 0);
                     }
                 }

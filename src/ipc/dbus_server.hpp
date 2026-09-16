@@ -5,14 +5,10 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <systemd/sd-bus.h>
 #include <vector>
 
 #include "common/types.hpp"
-
-struct sd_bus;
-struct sd_bus_slot;
-struct sd_bus_message;
-struct sd_bus_error;
 
 namespace strata {
 

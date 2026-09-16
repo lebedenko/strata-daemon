@@ -94,10 +94,8 @@ int cmd_status(sd_bus *bus, bool as_json) {
                              "Active Layer: {} (Index: {}, Mask: 0x{:08x})\n"
                              "Layers:       {} configured\n"
                              "Cache:        {}\n",
-                             node, name,
-                             build_id.empty() ? "None" : build_id,
-                             active_name, active_idx, active_mask,
-                             layers_count,
+                             node, name, build_id.empty() ? "None" : build_id, active_name,
+                             active_idx, active_mask, layers_count,
                              cached ? "Cached" : "Live Hardware");
 
     return 0;
@@ -107,17 +105,11 @@ int cmd_layers(sd_bus *bus, bool as_json) {
     sd_bus_error error = SD_BUS_ERROR_NULL;
     sd_bus_message *reply = nullptr;
 
-    int r = sd_bus_call_method(bus,
-                               "org.freedesktop.Strata",
-                               "/org/freedesktop/Strata/Device0",
-                               "org.freedesktop.Strata.Device1",
-                               "GetLayers",
-                               &error,
-                               &reply,
-                               "");
+    int r = sd_bus_call_method(bus, "org.freedesktop.Strata", "/org/freedesktop/Strata/Device0",
+                               "org.freedesktop.Strata.Device1", "GetLayers", &error, &reply, "");
     if (r < 0) {
-        std::cerr << "Failed to query layers: "
-                  << (error.message ? error.message : strerror(-r)) << "\n";
+        std::cerr << "Failed to query layers: " << (error.message ? error.message : strerror(-r))
+                  << "\n";
         sd_bus_error_free(&error);
         return 1;
     }
@@ -157,19 +149,12 @@ int cmd_keymap(sd_bus *bus, uint32_t layer_idx, bool refresh, bool as_json) {
     sd_bus_error error = SD_BUS_ERROR_NULL;
     sd_bus_message *reply = nullptr;
 
-    int r = sd_bus_call_method(bus,
-                               "org.freedesktop.Strata",
-                               "/org/freedesktop/Strata/Device0",
-                               "org.freedesktop.Strata.Device1",
-                               "GetKeymap",
-                               &error,
-                               &reply,
-                               "ub",
-                               layer_idx,
-                               refresh ? 1 : 0);
+    int r = sd_bus_call_method(bus, "org.freedesktop.Strata", "/org/freedesktop/Strata/Device0",
+                               "org.freedesktop.Strata.Device1", "GetKeymap", &error, &reply, "ub",
+                               layer_idx, refresh ? 1 : 0);
     if (r < 0) {
-        std::cerr << "Failed to get keymap: "
-                  << (error.message ? error.message : strerror(-r)) << "\n";
+        std::cerr << "Failed to get keymap: " << (error.message ? error.message : strerror(-r))
+                  << "\n";
         sd_bus_error_free(&error);
         return 1;
     }
@@ -193,10 +178,8 @@ int cmd_keymap(sd_bus *bus, uint32_t layer_idx, bool refresh, bool as_json) {
     auto summary = j["summary"];
     std::cout << std::format("Device: {} (Build ID: {})\n"
                              "Layers: {}, Keys per layer: {}\n\n",
-                             j.value("device", "Unknown"),
-                             j.value("build_id", "Unknown"),
-                             summary.value("layer_count", 0),
-                             summary.value("keys_per_layer", 0));
+                             j.value("device", "Unknown"), j.value("build_id", "Unknown"),
+                             summary.value("layer_count", 0), summary.value("keys_per_layer", 0));
 
     if (j.contains("bindings") && j["bindings"].is_object()) {
         for (auto it = j["bindings"].begin(); it != j["bindings"].end(); ++it) {
@@ -217,7 +200,8 @@ int cmd_keymap(sd_bus *bus, uint32_t layer_idx, bool refresh, bool as_json) {
             std::cout << "\n";
         }
     } else {
-        std::cout << "No bindings cached for this layer yet. Run with --refresh to query hardware.\n";
+        std::cout
+            << "No bindings cached for this layer yet. Run with --refresh to query hardware.\n";
     }
 
     if (j.contains("sensor_bindings") && j["sensor_bindings"].is_object() &&

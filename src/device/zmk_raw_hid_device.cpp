@@ -146,9 +146,10 @@ void ZmkRawHidDevice::handleReport(std::span<const uint8_t> data) {
             .sensorsPerLayer = report->sensorsPerLayer,
         };
 
-        log::info("Keymap summary: {} layers, {} keys/layer, {} sensors/layer, default={}, build='{}'",
-                  summary.layerCount, summary.keysPerLayer, summary.sensorsPerLayer,
-                  summary.defaultLayer, summary.buildId);
+        log::info(
+            "Keymap summary: {} layers, {} keys/layer, {} sensors/layer, default={}, build='{}'",
+            summary.layerCount, summary.keysPerLayer, summary.sensorsPerLayer, summary.defaultLayer,
+            summary.buildId);
 
         if (onSummary_) {
             onSummary_(summary);
