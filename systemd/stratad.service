@@ -1,0 +1,14 @@
+[Unit]
+Description=Strata Keyboard Management Daemon
+Documentation=https://github.com/lebedenko/strata
+After=graphical-session.target
+
+[Service]
+Type=notify
+ExecStart=%h/.local/bin/stratad
+Restart=on-failure
+RestartSec=2s
+Environment=STRATAD_LOG_LEVEL=info
+
+[Install]
+WantedBy=default.target

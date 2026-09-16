@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.freedesktop.Strata
+Exec=%h/.local/bin/stratad
+SystemdService=stratad.service

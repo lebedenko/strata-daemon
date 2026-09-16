@@ -1,0 +1,73 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task: build
+
+  configure:
+    desc: Configure CMake build directory with Ninja
+    cmds:
+      - cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    status:
+      - test -f build/build.ninja
+
+  build:
+    desc: Build all targets (stratad, strata-cli, tests)
+    deps: [configure]
+    cmds:
+      - ninja -C build
+
+  debug:
+    desc: Build in Debug mode with Address and Undefined sanitizers
+    cmds:
+      - cmake -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - ninja -C build-debug
+
+  test:
+    desc: Run unit test suite
+    deps: [build]
+    cmds:
+      - ctest --test-dir build --output-on-failure
+
+  format:
+    desc: Format C++ source files with clang-format
+    cmds:
+      - find src tests -name '*.hpp' -o -name '*.cpp' | xargs clang-format -i
+
+  format-check:
+    desc: Check C++ code formatting without modifying files
+    cmds:
+      - find src tests -name '*.hpp' -o -name '*.cpp' | xargs clang-format --dry-run --Werror
+
+  lint:
+    desc: Run clang-tidy on source files
+    deps: [configure]
+    cmds:
+      - clang-tidy -p build src/**/*.cpp
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf build build-debug
+
+  install-service:
+    desc: Install user systemd unit and D-Bus activation service
+    cmds:
+      - mkdir -p ~/.config/systemd/user ~/.local/share/dbus-1/services
+      - cp systemd/stratad.service ~/.config/systemd/user/
+      - cp systemd/org.freedesktop.Strata.service ~/.local/share/dbus-1/services/
+      - systemctl --user daemon-reload
+      - echo "Services installed. Enable with 'systemctl --user enable --now stratad'"
+
+  run-daemon:
+    desc: Run stratad directly in foreground
+    deps: [build]
+    cmds:
+      - ./build/stratad -v
+
+  run-cli:
+    desc: Run strata-cli status
+    deps: [build]
+    cmds:
+      - ./build/strata-cli status
