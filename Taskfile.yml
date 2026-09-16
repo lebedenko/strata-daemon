@@ -51,8 +51,16 @@ tasks:
     cmds:
       - rm -rf build build-debug
 
+  install:
+    desc: Install stratad and strata-cli to ~/.local/bin
+    deps: [build]
+    cmds:
+      - mkdir -p ~/.local/bin
+      - cp build/stratad build/strata-cli ~/.local/bin/
+
   install-service:
-    desc: Install user systemd unit and D-Bus activation service
+    desc: Install binaries, user systemd unit, and D-Bus activation service
+    deps: [install]
     cmds:
       - mkdir -p ~/.config/systemd/user ~/.local/share/dbus-1/services
       - cp systemd/stratad.service ~/.config/systemd/user/
