@@ -45,7 +45,7 @@ void ZmkRawHidDevice::poll(std::chrono::milliseconds timeout) {
         return;
     }
 
-    struct pollfd pfd{};
+    struct pollfd pfd = {};
     pfd.fd = fd_;
     pfd.events = POLLIN;
 

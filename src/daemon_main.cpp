@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
 
     LOG_INFO("Starting stratad (Strata keyboard daemon)...");
 
-    struct sigaction sa{};
+    struct sigaction sa = {};
     sa.sa_handler = handle_signal;
     sigemptyset(&sa.sa_mask);
     sigaction(SIGINT, &sa, nullptr);

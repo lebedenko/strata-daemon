@@ -215,7 +215,7 @@ void DeviceManager::handleUdevEvent() {
 
 void DeviceManager::poll(std::chrono::milliseconds timeout) {
     if (monitorFd_ >= 0) {
-        struct pollfd pfd{};
+        struct pollfd pfd = {};
         pfd.fd = monitorFd_;
         pfd.events = POLLIN;
 
