@@ -14,7 +14,7 @@ Repository: `/home/andrii/Projects/pet/strata-daemon`
    - Dual-mode logging: colored ISO timestamps for interactive TTY terminals; native systemd stream prefixes (`<6>`, `<7>`, etc.) when managed by journald.
    - Quiet by default in normal mode (suppresses high-frequency layer transition spam), detailed diagnostic dumps in debug mode (`-v` or `STRATAD_LOG_LEVEL=debug`).
    - Dynamic device discovery and hotplug monitoring via `libudev` filtering for Raw HID usage page `0xFF60` and usage `0x61`.
-   - Native D-Bus session bus service (`org.freedesktop.Strata`) via `sd-bus` from `libsystemd`.
+   - Native D-Bus session bus service (`io.github.lebedenko.Strata`) via `sd-bus` from `libsystemd`.
    - Transparent handling of the Linux Bluetooth HoG `0x00` dummy report ID byte.
 2. **`strata-cli` (CLI Client)**:
    - Subcommands: `status`, `layers`, `keymap`, `cache`, `listen`.
@@ -39,7 +39,7 @@ The implementation was compiled and verified directly against the user's connect
 ```
 2026-09-16 16:13:48.656 [INFO ] Starting stratad (Strata keyboard daemon)...
 2026-09-16 16:13:48.656 [DEBUG] Keymap cache directory: /home/andrii/.cache/strata/keymaps
-2026-09-16 16:13:48.656 [INFO ] Registered D-Bus service 'org.freedesktop.Strata' at object path '/org/freedesktop/Strata/Device0'
+2026-09-16 16:13:48.656 [INFO ] Registered D-Bus service 'io.github.lebedenko.Strata' with Manager at '/io/github/lebedenko/Strata/Manager'
 2026-09-16 16:13:48.656 [INFO ] Udev monitor initialized for hidraw devices
 2026-09-16 16:13:48.657 [INFO ] Detected Eyelash Corne Raw HID node at /dev/hidraw7
 2026-09-16 16:13:48.657 [INFO ] Opened HID device: /dev/hidraw7 (Eyelash Corne)
@@ -121,9 +121,9 @@ Total Test time (real) =   0.01 sec
 ## 3. D-Bus Specification Reference
 
 The daemon registers on the user session bus:
-- **Service**: `org.freedesktop.Strata`
-- **Object Path**: `/org/freedesktop/Strata/Device0`
-- **Interface**: `org.freedesktop.Strata.Device1`
+- **Service**: `io.github.lebedenko.Strata`
+- **Manager Path**: `/io/github/lebedenko/Strata/Manager` (`io.github.lebedenko.Strata.Manager1`)
+- **Device Paths**: `/io/github/lebedenko/Strata/devices/<device_id>` (`io.github.lebedenko.Strata.Device1`, `io.github.lebedenko.Strata.Keymap1`)
 
 ### Methods
 | Method | Signature | Description |

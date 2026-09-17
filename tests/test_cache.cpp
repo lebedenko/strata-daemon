@@ -37,8 +37,8 @@ int main() {
     strata::LayerInfo l1{1, 1, "NUMBER", false};
     data.layers = {l0, l1};
 
-    strata::KeyBinding b0{0, "key_press", 458805, 0};
-    strata::KeyBinding b1{1, "key_press", 458772, 0};
+    strata::KeyBinding b0{.pos = 0, .behavior = "key_press", .param1 = 458805, .param2 = 0};
+    strata::KeyBinding b1{.pos = 1, .behavior = "key_press", .param1 = 458772, .param2 = 0};
     data.bindings[0] = {b0, b1};
 
     // Test save
@@ -69,7 +69,7 @@ int main() {
     std::cout << "[PASS] List cached builds\n";
 
     // Test update_bindings
-    strata::KeyBinding b2{0, "to_layer", 1, 0};
+    strata::KeyBinding b2{.pos = 0, .behavior = "to_layer", .param1 = 1, .param2 = 0};
     bool updated = cache.update_bindings("eyelash_corne", "abcd1234", 1, {b2});
     TEST_ASSERT(updated);
 
@@ -80,7 +80,15 @@ int main() {
     TEST_ASSERT(reloaded->bindings.at(1)[0].behavior == "to_layer");
     std::cout << "[PASS] Update layer bindings\n";
 
+    // Test remove
+    bool removed = cache.remove("eyelash_corne", "abcd1234");
+    TEST_ASSERT(removed);
+    auto after_remove = cache.load("eyelash_corne", "abcd1234");
+    TEST_ASSERT(!after_remove.has_value());
+    std::cout << "[PASS] Remove cached build\n";
+
     // Test clear
+    cache.save(data);
     bool cleared = cache.clear();
     TEST_ASSERT(cleared);
     auto empty_builds = cache.list_cached_builds("eyelash_corne");

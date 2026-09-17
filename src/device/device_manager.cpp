@@ -6,6 +6,7 @@
 #include <fstream>
 #include <libudev.h>
 #include <poll.h>
+#include <sstream>
 #include <unistd.h>
 
 #include "common/logger.hpp"
@@ -55,10 +56,11 @@ std::string toLower(std::string str) {
 DeviceManager::DeviceManager() = default;
 
 DeviceManager::~DeviceManager() {
-    if (activeDevice_) {
-        activeDevice_->close();
-        activeDevice_.reset();
+    for (auto &[id, dev] : devices_) {
+        dev->close();
     }
+    devices_.clear();
+
     if (monitor_) {
         udev_monitor_unref(monitor_);
         monitor_ = nullptr;
@@ -99,6 +101,74 @@ bool DeviceManager::init() {
     return true;
 }
 
+std::string DeviceManager::sanitizeId(std::string_view id) {
+    std::string s;
+    s.reserve(id.size());
+    for (char c : id) {
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+            c == '_') {
+            s.push_back(c);
+        } else {
+            s.push_back('_');
+        }
+    }
+    return s.empty() ? "device" : s;
+}
+
+IDevice *DeviceManager::activeDevice() const {
+    if (activeDeviceId_.empty()) {
+        return nullptr;
+    }
+    auto it = devices_.find(activeDeviceId_);
+    return it != devices_.end() ? it->second.get() : nullptr;
+}
+
+IDevice *DeviceManager::getDevice(const std::string &id) const {
+    if (id.empty()) {
+        return activeDevice();
+    }
+    auto it = devices_.find(id);
+    if (it != devices_.end()) {
+        return it->second.get();
+    }
+    std::string san = sanitizeId(id);
+    auto it2 = devices_.find(san);
+    if (it2 != devices_.end()) {
+        return it2->second.get();
+    }
+    for (const auto &[devId, dev] : devices_) {
+        if (sanitizeId(devId) == san) {
+            return dev.get();
+        }
+    }
+    return nullptr;
+}
+
+std::vector<IDevice *> DeviceManager::allDevices() const {
+    std::vector<IDevice *> list;
+    list.reserve(devices_.size());
+    for (const auto &[id, dev] : devices_) {
+        list.push_back(dev.get());
+    }
+    return list;
+}
+
+bool DeviceManager::setActiveDevice(const std::string &id) {
+    auto *dev = getDevice(id);
+    if (!dev) {
+        return false;
+    }
+    std::string actualId = dev->id();
+    if (activeDeviceId_ != actualId) {
+        activeDeviceId_ = actualId;
+        log::info("Active keyboard switched to: {} ({})", dev->name(), actualId);
+        if (onActiveChanged_) {
+            onActiveChanged_(dev);
+        }
+    }
+    return true;
+}
+
 std::unique_ptr<IDevice> DeviceManager::probeDevice(const std::string &devNode,
                                                     const std::string &sysPath) {
     std::filesystem::path p(sysPath);
@@ -112,6 +182,17 @@ std::unique_ptr<IDevice> DeviceManager::probeDevice(const std::string &devNode,
     }
     std::string ueventLower = toLower(uevent);
 
+    std::string uniq;
+    std::istringstream stream(uevent);
+    std::string line;
+    while (std::getline(stream, line)) {
+        if (line.starts_with("HID_UNIQ=")) {
+            uniq = line.substr(9);
+            std::replace(uniq.begin(), uniq.end(), '/', '_');
+            break;
+        }
+    }
+
     bool isCorne = (ueventLower.find(CorneVid) != std::string::npos &&
                     ueventLower.find(CornePid) != std::string::npos) ||
                    ueventLower.find("eyelash corne") != std::string::npos;
@@ -121,15 +202,28 @@ std::unique_ptr<IDevice> DeviceManager::probeDevice(const std::string &devNode,
                      ueventLower.find("voyager") != std::string::npos;
 
     if (isCorne) {
-        // Confirm raw HID usage page
         if (hasRawHidUsagePage(descPath)) {
             log::info("Detected Eyelash Corne Raw HID node at {}", devNode);
-            return std::make_unique<ZmkRawHidDevice>(devNode, "Eyelash Corne");
+            std::string id = uniq.empty() ? "corne" : sanitizeId("corne_" + uniq);
+            return std::make_unique<ZmkRawHidDevice>(devNode, "Eyelash Corne", id);
         }
     } else if (isVoyager) {
         if (hasRawHidUsagePage(descPath)) {
             log::info("Detected ZSA Voyager Raw HID node at {}", devNode);
-            return std::make_unique<QmkVoyagerDevice>(devNode);
+            std::string id = uniq.empty() ? "voyager" : sanitizeId("voyager_" + uniq);
+            std::string layoutHash;
+            std::string layoutRev = "latest";
+            if (!uniq.empty()) {
+                size_t sep = uniq.find_first_of("/_");
+                if (sep != std::string::npos) {
+                    layoutHash = uniq.substr(0, sep);
+                    layoutRev = uniq.substr(sep + 1);
+                } else {
+                    layoutHash = uniq;
+                }
+            }
+            return std::make_unique<QmkVoyagerDevice>(devNode, "ZSA Voyager", id, layoutHash,
+                                                      layoutRev);
         }
     }
 
@@ -145,10 +239,10 @@ void DeviceManager::scanExistingDevices() {
     udev_enumerate_add_match_subsystem(enumerate, "hidraw");
     udev_enumerate_scan_devices(enumerate);
 
-    struct udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
+    struct udev_list_entry *devEntries = udev_enumerate_get_list_entry(enumerate);
     struct udev_list_entry *entry = nullptr;
 
-    udev_list_entry_foreach(entry, devices) {
+    udev_list_entry_foreach(entry, devEntries) {
         const char *path = udev_list_entry_get_name(entry);
         struct udev_device *dev = udev_device_new_from_syspath(udev_, path);
         if (!dev) {
@@ -160,9 +254,15 @@ void DeviceManager::scanExistingDevices() {
             auto candidate = probeDevice(devnode, path);
             if (candidate) {
                 if (candidate->open()) {
-                    activeDevice_ = std::move(candidate);
-                    udev_device_unref(dev);
-                    break;
+                    std::string id = candidate->id();
+                    IDevice *ptr = candidate.get();
+                    devices_[id] = std::move(candidate);
+                    if (activeDeviceId_.empty()) {
+                        activeDeviceId_ = id;
+                    }
+                    if (onConnect_) {
+                        onConnect_(ptr);
+                    }
                 }
             }
         }
@@ -170,10 +270,6 @@ void DeviceManager::scanExistingDevices() {
     }
 
     udev_enumerate_unref(enumerate);
-
-    if (activeDevice_ && onConnect_) {
-        onConnect_(activeDevice_.get());
-    }
 }
 
 void DeviceManager::handleUdevEvent() {
@@ -190,21 +286,36 @@ void DeviceManager::handleUdevEvent() {
         std::string act(action);
         std::string node(devnode);
 
-        if (act == "add" && !activeDevice_) {
+        if (act == "add") {
             auto candidate = probeDevice(node, syspath ? syspath : "");
             if (candidate && candidate->open()) {
-                activeDevice_ = std::move(candidate);
+                std::string id = candidate->id();
+                IDevice *ptr = candidate.get();
+                devices_[id] = std::move(candidate);
+                if (activeDeviceId_.empty()) {
+                    activeDeviceId_ = id;
+                }
                 if (onConnect_) {
-                    onConnect_(activeDevice_.get());
+                    onConnect_(ptr);
                 }
             }
         } else if (act == "remove") {
-            if (activeDevice_ && activeDevice_->deviceNode() == node) {
-                log::info("Monitored device removed: {}", node);
-                activeDevice_->close();
-                activeDevice_.reset();
-                if (onDisconnect_) {
-                    onDisconnect_(node);
+            for (auto it = devices_.begin(); it != devices_.end(); ++it) {
+                if (it->second->deviceNode() == node) {
+                    std::string id = it->first;
+                    log::info("Monitored device removed: {} ({})", it->second->name(), node);
+                    it->second->close();
+                    devices_.erase(it);
+                    if (onDisconnect_) {
+                        onDisconnect_(node, id);
+                    }
+                    if (activeDeviceId_ == id) {
+                        activeDeviceId_ = devices_.empty() ? "" : devices_.begin()->first;
+                        if (onActiveChanged_) {
+                            onActiveChanged_(activeDevice());
+                        }
+                    }
+                    break;
                 }
             }
         }
@@ -214,20 +325,26 @@ void DeviceManager::handleUdevEvent() {
 }
 
 void DeviceManager::poll(std::chrono::milliseconds timeout) {
+    std::vector<struct pollfd> pfds;
     if (monitorFd_ >= 0) {
-        struct pollfd pfd = {};
-        pfd.fd = monitorFd_;
-        pfd.events = POLLIN;
+        pfds.push_back({monitorFd_, POLLIN, 0});
+    }
+    for (const auto &[id, dev] : devices_) {
+        int devFd = dev->fd();
+        if (devFd >= 0) {
+            pfds.push_back({devFd, POLLIN, 0});
+        }
+    }
 
-        int waitMs = activeDevice_ ? 0 : static_cast<int>(timeout.count());
-        int ret = ::poll(&pfd, 1, waitMs);
-        if (ret > 0 && (pfd.revents & POLLIN)) {
+    int ret = ::poll(pfds.data(), pfds.size(), static_cast<int>(timeout.count()));
+    if (ret > 0) {
+        if (monitorFd_ >= 0 && (pfds[0].revents & POLLIN)) {
             handleUdevEvent();
         }
     }
 
-    if (activeDevice_) {
-        activeDevice_->poll(timeout);
+    for (auto &[id, dev] : devices_) {
+        dev->poll(std::chrono::milliseconds(0));
     }
 }
 

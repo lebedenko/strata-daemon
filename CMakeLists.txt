@@ -28,6 +28,7 @@ add_compile_options(
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SYSTEMD REQUIRED IMPORTED_TARGET libsystemd)
 pkg_check_modules(UDEV REQUIRED IMPORTED_TARGET libudev)
+pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
 
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
@@ -36,6 +37,8 @@ add_library(strata_common STATIC
     src/common/logger.cpp
     src/cache/keymap_cache.cpp
     src/device/zmk_raw_hid_device.cpp
+    src/device/qmk_voyager_device.cpp
+    src/device/oryx_layout.cpp
     src/device/device_manager.cpp
     src/ipc/dbus_server.cpp
 )
@@ -47,6 +50,7 @@ target_include_directories(strata_common PUBLIC
 target_link_libraries(strata_common PUBLIC
     PkgConfig::SYSTEMD
     PkgConfig::UDEV
+    PkgConfig::CURL
     nlohmann_json::nlohmann_json
 )
 
@@ -93,6 +97,14 @@ target_link_libraries(test_cache PRIVATE
 add_test(NAME test_protocol COMMAND test_protocol)
 add_test(NAME test_cache COMMAND test_cache)
 
+add_executable(test_device_manager
+    tests/test_device_manager.cpp
+)
+target_link_libraries(test_device_manager PRIVATE
+    strata_common
+)
+add_test(NAME test_device_manager COMMAND test_device_manager)
+
 # Installation rules
 include(GNUInstallDirs)
 
@@ -104,7 +116,7 @@ install(FILES systemd/stratad.service
     DESTINATION ${CMAKE_INSTALL_DATADIR}/systemd/user
 )
 
-install(FILES systemd/org.freedesktop.Strata.service
+install(FILES systemd/io.github.lebedenko.Strata.service
     DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services
 )
 

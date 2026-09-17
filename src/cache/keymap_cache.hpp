@@ -28,6 +28,8 @@ public:
 
     bool clear() const;
 
+    bool remove(std::string_view device_name, std::string_view build_id) const;
+
     [[nodiscard]] std::vector<std::string>
     list_cached_builds(std::string_view device_name = "") const;
 

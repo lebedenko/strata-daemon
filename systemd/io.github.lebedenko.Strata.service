@@ -1,4 +1,4 @@
 [D-BUS Service]
-Name=org.freedesktop.Strata
+Name=io.github.lebedenko.Strata
 Exec=%h/.local/bin/stratad
 SystemdService=stratad.service

@@ -19,6 +19,7 @@ inline constexpr uint8_t MsgKeymapSummary = 0x02;
 inline constexpr uint8_t MsgLayerInfo = 0x03;
 inline constexpr uint8_t MsgLayerBinding = 0x04;
 inline constexpr uint8_t MsgSensorBinding = 0x05;
+inline constexpr uint8_t MsgCmdAck = 0x06;
 
 // Command types from Host -> Keyboard
 inline constexpr uint8_t CmdGetCurrentLayer = 0x01;
@@ -26,6 +27,8 @@ inline constexpr uint8_t CmdGetKeymapSummary = 0x02;
 inline constexpr uint8_t CmdGetLayerInfo = 0x03;
 inline constexpr uint8_t CmdGetLayerBinding = 0x04;
 inline constexpr uint8_t CmdGetSensorBinding = 0x05;
+inline constexpr uint8_t CmdSetLayer = 0x06;
+inline constexpr uint8_t CmdClearLayer = 0x07;
 
 #pragma pack(push, 1)
 
@@ -36,7 +39,7 @@ struct LayerStateReport {
     uint8_t nameLen{0};
     char name[MaxLayerNameLen]{0};
     char buildId[BuildIdLen]{0};
-    uint8_t reserved[1]{0};
+    uint8_t seq{0};
 };
 static_assert(sizeof(LayerStateReport) == RawReportSize, "LayerStateReport must be 32 bytes");
 
@@ -47,7 +50,8 @@ struct KeymapSummaryReport {
     uint8_t defaultLayer{0};
     char buildId[BuildIdLen]{0};
     uint8_t sensorsPerLayer{0};
-    uint8_t reserved[19]{0};
+    uint8_t seq{0};
+    uint8_t reserved[18]{0};
 };
 static_assert(sizeof(KeymapSummaryReport) == RawReportSize, "KeymapSummaryReport must be 32 bytes");
 
@@ -58,7 +62,8 @@ struct LayerInfoReport {
     uint8_t nameLen{0};
     char name[MaxLayerNameLen]{0};
     uint8_t isActive{0};
-    uint8_t reserved[11]{0};
+    uint8_t seq{0};
+    uint8_t reserved[10]{0};
 };
 static_assert(sizeof(LayerInfoReport) == RawReportSize, "LayerInfoReport must be 32 bytes");
 
@@ -69,7 +74,8 @@ struct LayerBindingReport {
     char behaviorName[MaxBehaviorNameLen]{0};
     uint32_t param1{0};
     uint32_t param2{0};
-    uint8_t reserved[9]{0};
+    uint8_t seq{0};
+    uint8_t reserved[8]{0};
 };
 static_assert(sizeof(LayerBindingReport) == RawReportSize, "LayerBindingReport must be 32 bytes");
 
@@ -80,9 +86,19 @@ struct SensorBindingReport {
     char behaviorName[MaxBehaviorNameLen]{0};
     uint32_t param1{0};
     uint32_t param2{0};
-    uint8_t reserved[9]{0};
+    uint8_t seq{0};
+    uint8_t reserved[8]{0};
 };
 static_assert(sizeof(SensorBindingReport) == RawReportSize, "SensorBindingReport must be 32 bytes");
+
+struct CmdAckReport {
+    uint8_t msgType{MsgCmdAck};
+    uint8_t cmdType{0};
+    uint8_t status{0};
+    uint8_t seq{0};
+    uint8_t reserved[28]{0};
+};
+static_assert(sizeof(CmdAckReport) == RawReportSize, "CmdAckReport must be 32 bytes");
 
 #pragma pack(pop)
 
@@ -94,40 +110,65 @@ inline std::string cleanString(const char *buf, size_t maxLen) {
     return std::string(buf, len);
 }
 
-inline std::array<uint8_t, RawReportSize> makeGetCurrentLayerQuery() {
+inline std::array<uint8_t, RawReportSize> makeGetCurrentLayerQuery(uint8_t seq = 0) {
     std::array<uint8_t, RawReportSize> buf{};
     buf[0] = CmdGetCurrentLayer;
+    buf[1] = seq;
     return buf;
 }
 
-inline std::array<uint8_t, RawReportSize> makeGetKeymapSummaryQuery() {
+inline std::array<uint8_t, RawReportSize> makeGetKeymapSummaryQuery(uint8_t seq = 0) {
     std::array<uint8_t, RawReportSize> buf{};
     buf[0] = CmdGetKeymapSummary;
+    buf[1] = seq;
     return buf;
 }
 
-inline std::array<uint8_t, RawReportSize> makeGetLayerInfoQuery(uint8_t layerIndex) {
+inline std::array<uint8_t, RawReportSize> makeGetLayerInfoQuery(uint8_t layerIndex,
+                                                                uint8_t seq = 0) {
     std::array<uint8_t, RawReportSize> buf{};
     buf[0] = CmdGetLayerInfo;
     buf[1] = layerIndex;
+    buf[2] = seq;
     return buf;
 }
 
-inline std::array<uint8_t, RawReportSize> makeGetLayerBindingQuery(uint8_t layerIndex,
-                                                                   uint8_t bindingIndex) {
+inline std::array<uint8_t, RawReportSize>
+makeGetLayerBindingQuery(uint8_t layerIndex, uint8_t bindingIndex, uint8_t seq = 0) {
     std::array<uint8_t, RawReportSize> buf{};
     buf[0] = CmdGetLayerBinding;
     buf[1] = layerIndex;
     buf[2] = bindingIndex;
+    buf[3] = seq;
     return buf;
 }
 
-inline std::array<uint8_t, RawReportSize> makeGetSensorBindingQuery(uint8_t layerIndex,
-                                                                    uint8_t sensorIndex) {
+inline std::array<uint8_t, RawReportSize>
+makeGetSensorBindingQuery(uint8_t layerIndex, uint8_t sensorIndex, uint8_t seq = 0) {
     std::array<uint8_t, RawReportSize> buf{};
     buf[0] = CmdGetSensorBinding;
     buf[1] = layerIndex;
     buf[2] = sensorIndex;
+    buf[3] = seq;
+    return buf;
+}
+
+inline std::array<uint8_t, RawReportSize>
+makeSetLayerCommand(uint8_t layerIndex, bool lock, uint16_t leaseMs = 5000, uint8_t seq = 0) {
+    std::array<uint8_t, RawReportSize> buf{};
+    buf[0] = CmdSetLayer;
+    buf[1] = layerIndex;
+    buf[2] = lock ? 1 : 0;
+    buf[3] = seq;
+    buf[4] = static_cast<uint8_t>(leaseMs & 0xFF);
+    buf[5] = static_cast<uint8_t>((leaseMs >> 8) & 0xFF);
+    return buf;
+}
+
+inline std::array<uint8_t, RawReportSize> makeClearLayerCommand(uint8_t seq = 0) {
+    std::array<uint8_t, RawReportSize> buf{};
+    buf[0] = CmdClearLayer;
+    buf[1] = seq;
     return buf;
 }
 

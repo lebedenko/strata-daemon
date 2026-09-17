@@ -9,9 +9,15 @@
 
 namespace strata::device {
 
-ZmkRawHidDevice::ZmkRawHidDevice(std::string deviceNode, std::string deviceName)
+ZmkRawHidDevice::ZmkRawHidDevice(std::string deviceNode, std::string deviceName, std::string id)
     : deviceNode_(std::move(deviceNode))
-    , name_(std::move(deviceName)) {}
+    , name_(std::move(deviceName))
+    , id_(std::move(id)) {
+    if (id_.empty()) {
+        auto slash = deviceNode_.find_last_of('/');
+        id_ = "corne-" + (slash != std::string::npos ? deviceNode_.substr(slash + 1) : deviceNode_);
+    }
+}
 
 ZmkRawHidDevice::~ZmkRawHidDevice() {
     close();
@@ -253,6 +259,11 @@ void ZmkRawHidDevice::queryLayerBinding(uint8_t layerIndex, uint8_t bindingIndex
 void ZmkRawHidDevice::querySensorBinding(uint8_t layerIndex, uint8_t sensorIndex) {
     auto query = protocol::makeGetSensorBindingQuery(layerIndex, sensorIndex);
     writeReport(query);
+}
+
+bool ZmkRawHidDevice::setLayer(uint8_t layer, bool lock) {
+    auto cmd = protocol::makeSetLayerCommand(layer, lock);
+    return writeReport(cmd);
 }
 
 } // namespace strata::device

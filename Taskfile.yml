@@ -64,7 +64,7 @@ tasks:
     cmds:
       - mkdir -p ~/.config/systemd/user ~/.local/share/dbus-1/services
       - cp systemd/stratad.service ~/.config/systemd/user/
-      - cp systemd/org.freedesktop.Strata.service ~/.local/share/dbus-1/services/
+      - cp systemd/io.github.lebedenko.Strata.service ~/.local/share/dbus-1/services/
       - systemctl --user daemon-reload
       - echo "Services installed. Enable with 'systemctl --user enable --now stratad'"
 

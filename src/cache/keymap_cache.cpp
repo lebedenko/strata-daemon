@@ -94,6 +94,10 @@ std::optional<KeymapData> KeymapCache::load(std::string_view device_name,
                             kb.behavior = b_item.value("behavior", "");
                             kb.param1 = b_item.value("param1", static_cast<uint32_t>(0));
                             kb.param2 = b_item.value("param2", static_cast<uint32_t>(0));
+                            kb.primaryLabel = b_item.value("primaryLabel", "");
+                            kb.secondaryLabel = b_item.value("secondaryLabel", "");
+                            kb.category = b_item.value("category", "");
+                            kb.tooltip = b_item.value("tooltip", "");
                             b_list.push_back(std::move(kb));
                         }
                     }
@@ -164,10 +168,19 @@ bool KeymapCache::save(const KeymapData &data) const {
         for (const auto &[layer_idx, b_list] : data.bindings) {
             json b_arr = json::array();
             for (const auto &b : b_list) {
-                b_arr.push_back(json::object({{"pos", b.pos},
-                                              {"behavior", b.behavior},
-                                              {"param1", b.param1},
-                                              {"param2", b.param2}}));
+                json b_obj = {{"pos", b.pos},
+                              {"behavior", b.behavior},
+                              {"param1", b.param1},
+                              {"param2", b.param2}};
+                if (!b.primaryLabel.empty())
+                    b_obj["primaryLabel"] = b.primaryLabel;
+                if (!b.secondaryLabel.empty())
+                    b_obj["secondaryLabel"] = b.secondaryLabel;
+                if (!b.category.empty())
+                    b_obj["category"] = b.category;
+                if (!b.tooltip.empty())
+                    b_obj["tooltip"] = b.tooltip;
+                b_arr.push_back(std::move(b_obj));
             }
             bindings_obj[std::to_string(layer_idx)] = b_arr;
         }
@@ -258,6 +271,21 @@ bool KeymapCache::clear() const {
     }
     LOG_INFO("Keymap cache cleared in {}", cache_dir_.string());
     return success;
+}
+
+bool KeymapCache::remove(std::string_view device_name, std::string_view build_id) const {
+    auto path = get_cache_path(device_name, build_id);
+    std::error_code ec;
+    if (!fs::exists(path, ec)) {
+        return true;
+    }
+    bool ok = fs::remove(path, ec);
+    if (ok) {
+        LOG_INFO("Removed cached keymap: {}", path.string());
+    } else {
+        LOG_WARN("Failed to remove cached keymap {}: {}", path.string(), ec.message());
+    }
+    return ok;
 }
 
 std::vector<std::string> KeymapCache::list_cached_builds(std::string_view device_name) const {
