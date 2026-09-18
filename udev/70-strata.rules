@@ -1,4 +1,7 @@
 # Udev rules for Strata Keyboard Management Daemon
+# Note: Must be numbered < 73 (e.g., 70-*) so TAG+="uaccess" is assigned
+# before /usr/lib/udev/rules.d/73-seat-late.rules applies user ACLs.
+#
 # Eyelash Corne (ZMK)
 KERNEL=="hidraw*", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="615e", MODE="0660", TAG+="uaccess"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="615e", MODE="0660", TAG+="uaccess"

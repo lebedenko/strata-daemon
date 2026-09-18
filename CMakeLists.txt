@@ -120,6 +120,6 @@ install(FILES systemd/io.github.lebedenko.Strata.service
     DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services
 )
 
-install(FILES udev/99-strata.rules
+install(FILES udev/70-strata.rules
     DESTINATION lib/udev/rules.d
 )

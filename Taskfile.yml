@@ -61,7 +61,7 @@ tasks:
   install-udev:
     desc: Install udev rules to /etc/udev/rules.d (requires sudo)
     cmds:
-      - sudo cp udev/99-strata.rules /etc/udev/rules.d/
+      - sudo cp udev/70-strata.rules /etc/udev/rules.d/
       - sudo udevadm control --reload-rules
       - sudo udevadm trigger
 
