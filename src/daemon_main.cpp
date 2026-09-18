@@ -77,6 +77,12 @@ int main(int argc, char *argv[]) {
     std::unordered_map<std::string, strata::DeviceStatus> device_statuses;
     std::unordered_map<std::string, strata::KeymapData> device_keymaps;
 
+    struct PendingProbe {
+        std::chrono::steady_clock::time_point nextQueryTime;
+        int retriesLeft{5};
+    };
+    std::unordered_map<std::string, PendingProbe> pending_probes;
+
     std::unique_ptr<strata::DBusServer> dbus_server;
     strata::device::DeviceManager device_mgr;
 
@@ -93,7 +99,18 @@ int main(int argc, char *argv[]) {
         }
         auto it = device_statuses.find(targetId);
         if (it != device_statuses.end()) {
-            return it->second;
+            auto &st = it->second;
+            auto kmIt = device_keymaps.find(targetId);
+            if (kmIt != device_keymaps.end() && !kmIt->second.layers.empty()) {
+                if (st.layersCount == 0) {
+                    st.layersCount = static_cast<uint8_t>(kmIt->second.layers.size());
+                }
+                if (st.buildId.empty()) {
+                    st.buildId = kmIt->second.buildId;
+                }
+                st.cached = true;
+            }
+            return st;
         }
         if (auto *dev = device_mgr.getDevice(targetId)) {
             strata::DeviceStatus st{};
@@ -105,6 +122,14 @@ int main(int argc, char *argv[]) {
             st.name = dev->name();
             st.node = dev->deviceNode();
             st.buildId = dev->buildId();
+            auto kmIt = device_keymaps.find(targetId);
+            if (kmIt != device_keymaps.end() && !kmIt->second.layers.empty()) {
+                st.layersCount = static_cast<uint8_t>(kmIt->second.layers.size());
+                if (st.buildId.empty()) {
+                    st.buildId = kmIt->second.buildId;
+                }
+                st.cached = true;
+            }
             return st;
         }
         return {};
@@ -137,14 +162,39 @@ int main(int argc, char *argv[]) {
             auto &st = device_statuses[id];
             st.activeLayerIndex = index;
             st.activeLayerMask = mask;
-            if (!buildId.empty() && st.buildId.empty()) {
+            if (!buildId.empty()) {
                 st.buildId = buildId;
             }
 
+            auto it = device_keymaps.find(id);
+            if (it == device_keymaps.end() || it->second.layers.empty()) {
+                if (!st.buildId.empty()) {
+                    auto cached = cache.load(st.name, st.buildId);
+                    if (cached && !cached->layers.empty()) {
+                        device_keymaps[id] = std::move(*cached);
+                        st.cached = true;
+                        st.layersCount = static_cast<uint8_t>(device_keymaps[id].layers.size());
+                        LOG_INFO("Loaded keymap for {} (build {}) from cache upon layer state "
+                                 "update ({} layers)",
+                                 st.name, st.buildId, device_keymaps[id].layers.size());
+                        pending_probes.erase(id);
+                        if (dbus_server) {
+                            dbus_server->emit_keymap_loaded(id, st.buildId, "cache",
+                                                            static_cast<uint32_t>(st.layersCount));
+                        }
+                    } else if (auto *d = device_mgr.getDevice(id)) {
+                        LOG_INFO("Keymap missing for active device {}. Querying summary from "
+                                 "hardware...",
+                                 id);
+                        d->queryKeymapSummary();
+                    }
+                }
+            }
+
             if (name.empty() || name.starts_with("Layer ")) {
-                auto it = device_keymaps.find(id);
-                if (it != device_keymaps.end()) {
-                    for (const auto &l : it->second.layers) {
+                auto it2 = device_keymaps.find(id);
+                if (it2 != device_keymaps.end()) {
+                    for (const auto &l : it2->second.layers) {
                         if (l.index == index) {
                             name = l.name;
                             break;
@@ -170,6 +220,7 @@ int main(int argc, char *argv[]) {
         });
 
         dev->setOnSummary([&, id](const strata::KeymapSummary &summary) {
+            pending_probes.erase(id);
             LOG_INFO("Received keymap summary for {}: {} layers, {} keys/layer, build={}", id,
                      summary.layerCount, summary.keysPerLayer, summary.buildId);
             auto &st = device_statuses[id];
@@ -309,6 +360,7 @@ int main(int argc, char *argv[]) {
 
         dev->setOnDisconnect([&, id]() {
             LOG_INFO("Device disconnected: {}", id);
+            pending_probes.erase(id);
             if (dbus_server) {
                 dbus_server->unregister_device(id);
             }
@@ -362,13 +414,37 @@ int main(int argc, char *argv[]) {
                 }
             }
         } else if (dev->hasCapability(strata::DeviceCapability::ReadableKeymap)) {
+            // Optimistically check cache for this device name in case it was cached previously
+            auto cachedBuilds = cache.list_cached_builds(status.name);
+            if (!cachedBuilds.empty()) {
+                std::string latestBuild = cachedBuilds.back();
+                auto cached = cache.load(status.name, latestBuild);
+                if (cached && !cached->layers.empty()) {
+                    status.buildId = latestBuild;
+                    status.cached = true;
+                    status.layersCount = static_cast<uint8_t>(cached->layers.size());
+                    if (!cached->layers.empty()) {
+                        status.activeLayerName = cached->layers[0].name;
+                    }
+                    device_keymaps[id] = std::move(*cached);
+                    LOG_INFO("Pre-loaded keymap for {} from cache (build {}, {} layers)",
+                             status.name, latestBuild, status.layersCount);
+                    if (dbus_server) {
+                        dbus_server->emit_keymap_loaded(id, latestBuild, "cache",
+                                                        static_cast<uint32_t>(status.layersCount));
+                    }
+                }
+            }
             dev->queryCurrentLayer();
             dev->queryKeymapSummary();
+            pending_probes[id] = {std::chrono::steady_clock::now() + std::chrono::milliseconds(400),
+                                  5};
         }
     });
 
     device_mgr.setOnDisconnect([&](const std::string &node, const std::string &id) {
         LOG_INFO("Device removed from manager: {} ({})", node, id);
+        pending_probes.erase(id);
         if (dbus_server) {
             dbus_server->unregister_device(id);
         }
@@ -407,6 +483,26 @@ int main(int argc, char *argv[]) {
             }
         }
         auto it = device_keymaps.find(targetId);
+        if (it == device_keymaps.end() || it->second.layers.empty()) {
+            auto &st = device_statuses[targetId];
+            std::string bid = st.buildId;
+            if (bid.empty()) {
+                auto builds = cache.list_cached_builds(st.name);
+                if (!builds.empty()) {
+                    bid = builds.back();
+                }
+            }
+            if (!bid.empty()) {
+                auto cached = cache.load(st.name, bid);
+                if (cached && !cached->layers.empty()) {
+                    st.buildId = bid;
+                    st.cached = true;
+                    st.layersCount = static_cast<uint8_t>(cached->layers.size());
+                    device_keymaps[targetId] = std::move(*cached);
+                    it = device_keymaps.find(targetId);
+                }
+            }
+        }
         if (it == device_keymaps.end()) {
             return {};
         }
@@ -433,7 +529,36 @@ int main(int argc, char *argv[]) {
             }
         }
         auto it = device_keymaps.find(targetId);
+        if (it == device_keymaps.end() || it->second.layers.empty()) {
+            auto &st = device_statuses[targetId];
+            std::string bid = st.buildId;
+            if (bid.empty()) {
+                auto builds = cache.list_cached_builds(st.name);
+                if (!builds.empty()) {
+                    bid = builds.back();
+                }
+            }
+            if (!bid.empty()) {
+                auto cached = cache.load(st.name, bid);
+                if (cached && !cached->layers.empty()) {
+                    st.buildId = bid;
+                    st.cached = true;
+                    st.layersCount = static_cast<uint8_t>(cached->layers.size());
+                    device_keymaps[targetId] = std::move(*cached);
+                    it = device_keymaps.find(targetId);
+                    if (dbus_server) {
+                        dbus_server->emit_keymap_loaded(targetId, bid, "cache",
+                                                        static_cast<uint32_t>(st.layersCount));
+                    }
+                }
+            }
+        }
         if (it == device_keymaps.end()) {
+            if (auto *dev = device_mgr.getDevice(targetId)) {
+                if (dev->isOpen()) {
+                    dev->queryKeymapSummary();
+                }
+            }
             return std::nullopt;
         }
 
@@ -568,6 +693,30 @@ int main(int argc, char *argv[]) {
     while (g_running) {
         dbus_server->process();
         device_mgr.poll(std::chrono::milliseconds(20));
+
+        if (!pending_probes.empty()) {
+            auto now = std::chrono::steady_clock::now();
+            for (auto it = pending_probes.begin(); it != pending_probes.end();) {
+                if (now >= it->second.nextQueryTime) {
+                    if (auto *d = device_mgr.getDevice(it->first)) {
+                        if (d->isOpen()) {
+                            LOG_DEBUG("Retrying hardware keymap query for {} ({} retries left)",
+                                      it->first, it->second.retriesLeft);
+                            d->queryCurrentLayer();
+                            d->queryKeymapSummary();
+                        }
+                    }
+                    if (--it->second.retriesLeft <= 0) {
+                        it = pending_probes.erase(it);
+                    } else {
+                        it->second.nextQueryTime = now + std::chrono::milliseconds(800);
+                        ++it;
+                    }
+                } else {
+                    ++it;
+                }
+            }
+        }
     }
 
     LOG_INFO("stratad stopping...");
