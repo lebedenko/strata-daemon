@@ -152,7 +152,7 @@ To install the daemon as an auto-started user service:
 ```bash
 cd /home/andrii/Projects/pet/strata-daemon
 
-# 1. Install user unit files
+# 1. Install binaries, systemd unit, D-Bus service, and udev rules (requires sudo for udev)
 task install-service
 
 # 2. Start the daemon service

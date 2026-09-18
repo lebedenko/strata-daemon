@@ -58,15 +58,23 @@ tasks:
       - mkdir -p ~/.local/bin
       - cp build/stratad build/strata-cli ~/.local/bin/
 
+  install-udev:
+    desc: Install udev rules to /etc/udev/rules.d (requires sudo)
+    cmds:
+      - sudo cp udev/99-strata.rules /etc/udev/rules.d/
+      - sudo udevadm control --reload-rules
+      - sudo udevadm trigger
+
   install-service:
-    desc: Install binaries, user systemd unit, and D-Bus activation service
+    desc: Install binaries, user systemd unit, D-Bus activation service, and udev rules
     deps: [install]
     cmds:
       - mkdir -p ~/.config/systemd/user ~/.local/share/dbus-1/services
       - cp systemd/stratad.service ~/.config/systemd/user/
       - cp systemd/io.github.lebedenko.Strata.service ~/.local/share/dbus-1/services/
       - systemctl --user daemon-reload
-      - echo "Services installed. Enable with 'systemctl --user enable --now stratad'"
+      - task: install-udev
+      - echo "Services and udev rules installed. Enable with 'systemctl --user enable --now stratad'"
 
   run-daemon:
     desc: Run stratad directly in foreground
