@@ -2,10 +2,10 @@
 # Note: Must be numbered < 73 (e.g., 70-*) so TAG+="uaccess" is assigned
 # before /usr/lib/udev/rules.d/73-seat-late.rules applies user ACLs.
 #
-# Eyelash Corne (ZMK)
-KERNEL=="hidraw*", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="615e", MODE="0660", TAG+="uaccess"
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="615e", MODE="0660", TAG+="uaccess"
+# Eyelash Corne (ZMK) - USB and Bluetooth
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="615e", MODE="0660", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", KERNELS=="*:1D50:615E.*", MODE="0660", TAG+="uaccess"
 
-# ZSA Voyager (QMK)
-KERNEL=="hidraw*", ATTRS{idVendor}=="3297", ATTRS{idProduct}=="1977", MODE="0660", TAG+="uaccess"
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3297", ATTRS{idProduct}=="1977", MODE="0660", TAG+="uaccess"
+# ZSA Voyager (QMK) - USB and Bluetooth
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3297", ATTRS{idProduct}=="1977", MODE="0660", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", KERNELS=="*:3297:1977.*", MODE="0660", TAG+="uaccess"
