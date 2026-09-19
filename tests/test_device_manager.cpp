@@ -86,6 +86,7 @@ int main() {
     // Test sanitizeId
     TEST_ASSERT(DeviceManager::sanitizeId("corne-f6:46:3b:d4:c4:1a") == "corne_f6_46_3b_d4_c4_1a");
     TEST_ASSERT(DeviceManager::sanitizeId("voyager_123") == "voyager_123");
+    TEST_ASSERT(DeviceManager::sanitizeId("twindial25_25010001") == "twindial25_25010001");
     TEST_ASSERT(DeviceManager::sanitizeId("") == "device");
 
     // Test Oryx QMK code to label

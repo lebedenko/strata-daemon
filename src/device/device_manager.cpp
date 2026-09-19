@@ -21,6 +21,8 @@ constexpr std::string_view CorneVid = "1d50";
 constexpr std::string_view CornePid = "615e";
 constexpr std::string_view VoyagerVid = "3297";
 constexpr std::string_view VoyagerPid = "1977";
+constexpr std::string_view TwinDialVid = "feed";
+constexpr std::string_view TwinDialPid = "2501";
 
 // Usage Page (0xFF60) in raw report descriptor
 constexpr std::array<uint8_t, 3> RawHidUsagePage = {0x06, 0x60, 0xff};
@@ -201,6 +203,10 @@ std::unique_ptr<IDevice> DeviceManager::probeDevice(const std::string &devNode,
                       ueventLower.find(VoyagerPid) != std::string::npos) ||
                      ueventLower.find("voyager") != std::string::npos;
 
+    bool isTwinDial = (ueventLower.find(TwinDialVid) != std::string::npos &&
+                       ueventLower.find(TwinDialPid) != std::string::npos) ||
+                      ueventLower.find("twindial") != std::string::npos;
+
     if (isCorne) {
         if (hasRawHidUsagePage(descPath)) {
             log::info("Detected Eyelash Corne Raw HID node at {}", devNode);
@@ -224,6 +230,12 @@ std::unique_ptr<IDevice> DeviceManager::probeDevice(const std::string &devNode,
             }
             return std::make_unique<QmkVoyagerDevice>(devNode, "ZSA Voyager", id, layoutHash,
                                                       layoutRev);
+        }
+    } else if (isTwinDial) {
+        if (hasRawHidUsagePage(descPath)) {
+            log::info("Detected TwinDial 25 Raw HID node at {}", devNode);
+            std::string id = uniq.empty() ? "twindial25" : sanitizeId("twindial25_" + uniq);
+            return std::make_unique<ZmkRawHidDevice>(devNode, "TwinDial 25", id);
         }
     }
 
