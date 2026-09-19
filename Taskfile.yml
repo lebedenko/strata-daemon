@@ -56,7 +56,7 @@ tasks:
     deps: [build]
     cmds:
       - mkdir -p ~/.local/bin
-      - cp build/stratad build/strata-cli ~/.local/bin/
+      - install -m 755 build/stratad build/strata-cli ~/.local/bin/
 
   install-udev:
     desc: Install udev rules to /etc/udev/rules.d (requires sudo)
